@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        form {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        input {
+            margin: 5px;
+            padding: 8px;
+        }
+        button {
+            padding: 8px 15px;
+            background: #0066ff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        #status-message {
+            padding: 10px;
+            margin: 10px 0;
+            display: none;
+        }
+        .success {
+            background: #dff0d8;
+            color: #3c763d;
+        }
+        .error {
+            background: #f2dede;
+            color: #a94442;
+        }
+        #users-list li {
+            margin: 10px 0;
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+    </style>
+    <script defer src="add_user.js"></script>
+</head>
+<body>
+    <h1>Users Management</h1>
+
+    <div id="status-message"></div>
+
+    <form id="user-form">
+        <input type="text" id="username" placeholder="Username" required>
+        <input type="email" id="email" placeholder="Email" required>
+        <button type="submit">Add User</button>
+    </form>
+
+    <h2>Users List</h2>
+    <ul id="users-list"></ul>
+
+</body>
+</html>
