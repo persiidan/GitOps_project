@@ -1,0 +1,76 @@
+pipeline {
+    agent any  // Runs on any available Jenkins agent
+
+    environment {
+        DOCKERHUB_USER = 'idanpersi'
+        BACKEND_IMG_NAME = 'gitops_backend'
+        FRONTEND_IMG_NAME = 'gitops_frontend'
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git 'https://github.com/persiidan/GitOps_project.git'
+            }
+        }
+
+        stage('Build Backend Image') {
+            steps {
+                script {
+                    sh 'docker build -t $DOCKERHUUB_USER/$BACKEND_IMG_NAME:latest ../backend'
+                }
+            }
+        }
+
+        stage('Build Frontend Image') {
+            steps {
+                script {
+                    sh 'docker build -t $DOCKERHUUB_USER/$FRONTEND_IMG_NAME:latest ../frontend'
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                script {
+                    sh 'docker-compose up -d'  // Start services in detached mode
+                    sh 'docker-compose exec backend pytest'  // Run backend tests
+                    sh 'docker-compose exec frontend npm test'  // Run frontend tests
+                    sh 'docker-compose down'  // Stop containers after testing
+                }
+            }
+        }
+
+        stage('Login to Docker Hub') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                        sh 'echo $PASS | docker login -u $USER --password-stdin'
+                    }
+                }
+            }
+        }
+
+        stage('Push Backend Image') {
+            steps {
+                script {
+                    sh 'docker push $DOCKERHUB_USER/$BACKEND_IMG_NAME:latest'
+                }
+            }
+        }
+
+        stage('Push Frontend Image') {
+            steps {
+                script {
+                    sh 'docker push $DOCKERHUUB_USER/$FRONTEND_IMG_NAME:latest'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker-compose down --volumes'  // Cleanup containers & volumes
+        }
+    }
+}
