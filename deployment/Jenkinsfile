@@ -22,101 +22,73 @@ pipeline {
             }
         }
         
-        stage('Backend Tests') {
-            steps {
-                dir('backend') {  // Change directory to backend folder
-                    script {
-                        // Build a temporary image for testing
-                        sh '''
-                            docker build -t backend-test .
-                            # Add your test command here, for example:
-                            docker run --rm backend-test npm test
-                        '''
+         stage('Run Tests') {
+            parallel {
+                stage('Backend Tests') {
+                    steps {
+                        dir('backend') {
+                            script {
+                                // Using docker.build() instead of raw docker commands
+                                def testImage = docker.build("backend-test:${env.BUILD_NUMBER}")
+                                testImage.inside {
+                                    sh 'npm test'  // Adjust this to your actual test command
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                stage('Frontend Tests') {
+                    steps {
+                        dir('frontend') {
+                            script {
+                                def testImage = docker.build("frontend-test:${env.BUILD_NUMBER}")
+                                testImage.inside {
+                                    sh 'npm test'  // Adjust this to your actual test command
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
         
-        stage('Frontend Tests') {
+        stage('Build and Push Images') {
             steps {
-                dir('frontend') {  // Change directory to frontend folder
-                    script {
-                        // Build a temporary image for testing
-                        sh '''
-                            docker build -t frontend-test .
-                            # Add your test command here, for example:
-                            docker run --rm frontend-test npm test
-                        '''
+                script {
+                    // Log in to DockerHub using the plugin's built-in functionality
+                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
+                        // Build and push backend
+                        dir('backend') {
+                            def backendImage = docker.build("${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG}")
+                            backendImage.push()
+                            backendImage.push('latest')
+                        }
+                        
+                        // Build and push frontend
+                        dir('frontend') {
+                            def frontendImage = docker.build("${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG}")
+                            frontendImage.push()
+                            frontendImage.push('latest')
+                        }
                     }
                 }
             }
         }
-        
-        stage('Build Images') {
-            steps {
-                script {
-                    // Build backend image
-                    sh """
-                        cd backend
-                        docker build -t ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG} .
-                        docker tag ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG} ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:latest
-                        cd ..
-                    """
-                    
-                    // Build frontend image
-                    sh """
-                        cd frontend
-                        docker build -t ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG} .
-                        docker tag ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG} ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:latest
-                        cd ..
-                    """
-                }
-            }
-        }
-        
-        stage('Login to DockerHub') {
-            steps {
-                script {
-                    // Log in to DockerHub using credentials
-                    sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                }
-            }
-        }
-        
-        stage('Push Images') {
-            steps {
-                script {
-                    // Push both version-tagged and latest images for backend
-                    sh """
-                        docker push ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG}
-                        docker push ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:latest
-                    """
-                    
-                    // Push both version-tagged and latest images for frontend
-                    sh """
-                        docker push ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG}
-                        docker push ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:latest
-                    """
-                }
-            }
-        }
-        
-        stage('Clean Up') {
-            steps {
-                script {
-                    // Remove local images to free up space
-                    sh """
-                        docker rmi ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG}
-                        docker rmi ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:latest
-                        docker rmi ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG}
-                        docker rmi ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:latest
-                        docker rmi backend-test
-                        docker rmi frontend-test
-                    """
-                    
-                    // Log out from DockerHub
-                    sh 'docker logout'
-                }
+    }
+    
+    post {
+        always {
+            // Clean up images
+            script {
+                sh """
+                    docker rmi backend-test:${BUILD_NUMBER} || true
+                    docker rmi frontend-test:${BUILD_NUMBER} || true
+                    docker rmi ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG} || true
+                    docker rmi ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:latest || true
+                    docker rmi ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG} || true
+                    docker rmi ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:latest || true
+                """
             }
         }
     }
