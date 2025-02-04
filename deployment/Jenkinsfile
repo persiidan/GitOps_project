@@ -41,7 +41,7 @@ pipeline {
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'DockerHub_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                        sh 'echo $PASS | docker login -u $USER --password-stdin'
+                        sh 'docker login -u $USER -p $PASS'
 
                         dir('backend') {
                             def backendImage = docker.build("${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG}")
