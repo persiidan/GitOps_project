@@ -2,42 +2,28 @@ pipeline {
     agent any
     
     environment {
-        // Define credentials ID that you'll set up in Jenkins
-        DOCKERHUB_CREDENTIALS = credentials('DockerHub_creds')
-        
-        // Define your DockerHub username and repository names
         DOCKERHUB_USERNAME = 'idanpersi'
         BACKEND_REPO = 'gitops_backend'
         FRONTEND_REPO = 'gitops_frontend'
-        DOCKER_TOOL = 'docker-latest'
-        
-        // Define image tags using the build number for versioning
         TAG = "${BUILD_NUMBER}"
     }
-    
-       tools {
-        // Install Docker from Jenkins tool configuration
-        dockerTool DOCKER_TOOL
-    }
-    
+
     stages {
         stage('Checkout') {
             steps {
-                // This will clone your GitHub repository
                 checkout scm
             }
         }
-        
-         stage('Run Tests') {
+
+        stage('Run Tests') {
             parallel {
                 stage('Backend Tests') {
                     steps {
                         dir('backend') {
                             script {
-                                // Using docker.build() instead of raw docker commands
-                                def testImage = docker.build("backend-test:${env.BUILD_NUMBER}")
+                                def testImage = docker.build("backend-test:${BUILD_NUMBER}")
                                 testImage.inside {
-                                    sh 'npm test'  // Adjust this to your actual test command
+                                    sh 'pytest' 
                                 }
                             }
                         }
@@ -48,9 +34,9 @@ pipeline {
                     steps {
                         dir('frontend') {
                             script {
-                                def testImage = docker.build("frontend-test:${env.BUILD_NUMBER}")
+                                def testImage = docker.build("frontend-test:${BUILD_NUMBER}")
                                 testImage.inside {
-                                    sh 'npm test'  // Adjust this to your actual test command
+                                    sh 'npm test'
                                 }
                             }
                         }
@@ -58,20 +44,19 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Build and Push Images') {
             steps {
                 script {
-                    // Log in to DockerHub using the plugin's built-in functionality
-                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
-                        // Build and push backend
+                    withCredentials([usernamePassword(credentialsId: 'DockerHub_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                        sh 'echo $PASS | docker login -u $USER --password-stdin'
+
                         dir('backend') {
                             def backendImage = docker.build("${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG}")
                             backendImage.push()
                             backendImage.push('latest')
                         }
                         
-                        // Build and push frontend
                         dir('frontend') {
                             def frontendImage = docker.build("${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG}")
                             frontendImage.push()
@@ -82,10 +67,9 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
-            // Clean up images
             script {
                 sh """
                     docker rmi backend-test:${BUILD_NUMBER} || true
