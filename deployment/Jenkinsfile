@@ -20,9 +20,6 @@ pipeline {
                         dir('backend') {
                             script {
                                 def testImage = docker.build("backend-test:${BUILD_NUMBER}")
-                                testImage.inside {
-                                    sh 'echo backend'
-                                }
                             }
                         }
                     }
@@ -33,9 +30,6 @@ pipeline {
                         dir('frontend') {
                             script {
                                 def testImage = docker.build("frontend-test:${BUILD_NUMBER}")
-                                testImage.inside {
-                                    sh 'echo frontend'
-                                }
                             }
                         }
                     }
