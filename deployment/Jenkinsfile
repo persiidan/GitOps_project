@@ -9,9 +9,15 @@ pipeline {
         DOCKERHUB_USERNAME = 'idanpersi'
         BACKEND_REPO = 'gitops_backend'
         FRONTEND_REPO = 'gitops_frontend'
+        DOCKER_TOOL = 'docker-latest'
         
         // Define image tags using the build number for versioning
         TAG = "${BUILD_NUMBER}"
+    }
+    
+       tools {
+        // Install Docker from Jenkins tool configuration
+        dockerTool DOCKER_TOOL
     }
     
     stages {
