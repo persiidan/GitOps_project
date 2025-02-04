@@ -12,7 +12,7 @@ pipeline {
        tools {
         dockerTool DOCKER_TOOL
     }
-
+    stages {
         stage('Run Tests') {
             parallel {
                 stage('Backend Tests') {
@@ -80,3 +80,4 @@ pipeline {
             }
         }
     }
+}
