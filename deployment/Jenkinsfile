@@ -1,76 +1,123 @@
 pipeline {
-    agent any  // Runs on any available Jenkins agent
-
+    agent any
+    
     environment {
-        DOCKERHUB_USER = 'idanpersi'
-        BACKEND_IMG_NAME = 'gitops_backend'
-        FRONTEND_IMG_NAME = 'gitops_frontend'
+        // Define credentials ID that you'll set up in Jenkins
+        DOCKERHUB_CREDENTIALS = credentials('DockerHub_creds')
+        
+        // Define your DockerHub username and repository names
+        DOCKERHUB_USERNAME = 'idanpersi'
+        BACKEND_REPO = 'gitops_backend'
+        FRONTEND_REPO = 'gitops_frontend'
+        
+        // Define image tags using the build number for versioning
+        TAG = "${BUILD_NUMBER}"
     }
-
+    
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
-                git 'https://github.com/persiidan/GitOps_project.git'
+                // This will clone your GitHub repository
+                checkout scm
             }
         }
-
-        stage('Build Backend Image') {
+        
+        stage('Backend Tests') {
             steps {
-                script {
-                    sh 'docker build -t $DOCKERHUUB_USER/$BACKEND_IMG_NAME:latest ../backend'
-                }
-            }
-        }
-
-        stage('Build Frontend Image') {
-            steps {
-                script {
-                    sh 'docker build -t $DOCKERHUUB_USER/$FRONTEND_IMG_NAME:latest ../frontend'
-                }
-            }
-        }
-
-        stage('Run Tests') {
-            steps {
-                script {
-                    sh 'docker-compose up -d'  // Start services in detached mode
-                    sh 'docker-compose exec backend pytest'  // Run backend tests
-                    sh 'docker-compose exec frontend npm test'  // Run frontend tests
-                    sh 'docker-compose down'  // Stop containers after testing
-                }
-            }
-        }
-
-        stage('Login to Docker Hub') {
-            steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                        sh 'echo $PASS | docker login -u $USER --password-stdin'
+                dir('backend') {  // Change directory to backend folder
+                    script {
+                        // Build a temporary image for testing
+                        sh '''
+                            docker build -t backend-test .
+                            # Add your test command here, for example:
+                            docker run --rm backend-test npm test
+                        '''
                     }
                 }
             }
         }
-
-        stage('Push Backend Image') {
+        
+        stage('Frontend Tests') {
             steps {
-                script {
-                    sh 'docker push $DOCKERHUB_USER/$BACKEND_IMG_NAME:latest'
+                dir('frontend') {  // Change directory to frontend folder
+                    script {
+                        // Build a temporary image for testing
+                        sh '''
+                            docker build -t frontend-test .
+                            # Add your test command here, for example:
+                            docker run --rm frontend-test npm test
+                        '''
+                    }
                 }
             }
         }
-
-        stage('Push Frontend Image') {
+        
+        stage('Build Images') {
             steps {
                 script {
-                    sh 'docker push $DOCKERHUUB_USER/$FRONTEND_IMG_NAME:latest'
+                    // Build backend image
+                    sh """
+                        cd backend
+                        docker build -t ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG} .
+                        docker tag ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG} ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:latest
+                        cd ..
+                    """
+                    
+                    // Build frontend image
+                    sh """
+                        cd frontend
+                        docker build -t ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG} .
+                        docker tag ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG} ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:latest
+                        cd ..
+                    """
                 }
             }
         }
-    }
-
-    post {
-        always {
-            sh 'docker-compose down --volumes'  // Cleanup containers & volumes
+        
+        stage('Login to DockerHub') {
+            steps {
+                script {
+                    // Log in to DockerHub using credentials
+                    sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                }
+            }
+        }
+        
+        stage('Push Images') {
+            steps {
+                script {
+                    // Push both version-tagged and latest images for backend
+                    sh """
+                        docker push ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG}
+                        docker push ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:latest
+                    """
+                    
+                    // Push both version-tagged and latest images for frontend
+                    sh """
+                        docker push ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG}
+                        docker push ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:latest
+                    """
+                }
+            }
+        }
+        
+        stage('Clean Up') {
+            steps {
+                script {
+                    // Remove local images to free up space
+                    sh """
+                        docker rmi ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:${TAG}
+                        docker rmi ${DOCKERHUB_USERNAME}/${BACKEND_REPO}:latest
+                        docker rmi ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:${TAG}
+                        docker rmi ${DOCKERHUB_USERNAME}/${FRONTEND_REPO}:latest
+                        docker rmi backend-test
+                        docker rmi frontend-test
+                    """
+                    
+                    // Log out from DockerHub
+                    sh 'docker logout'
+                }
+            }
         }
     }
 }
