@@ -5,15 +5,13 @@ pipeline {
         DOCKERHUB_USERNAME = 'idanpersi'
         BACKEND_REPO = 'gitops_backend'
         FRONTEND_REPO = 'gitops_frontend'
+        DOCKER_TOOL = 'docker-latest'
         TAG = "${BUILD_NUMBER}"
     }
-
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
+    
+       tools {
+        dockerTool DOCKER_TOOL
+    }
 
         stage('Run Tests') {
             parallel {
