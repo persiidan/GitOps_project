@@ -1,4 +1,4 @@
-const API_URL = window.BACKEND_URL;
+const API_URL = window.BACKEND_URL || "http://localhost:5000/users";
 
 function showMessage(message, isError = false) {
     const statusElement = document.getElementById("status-message");

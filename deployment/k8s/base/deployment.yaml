@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${APP_NAME}
+spec:
+  replicas: 1  # Default value, overridden by patches
+  selector:
+    matchLabels:
+      app: ${APP_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${APP_NAME}
+    spec:
+      containers:
+      - name: ${APP_NAME}
+        image: ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${IMAGE_TAG}
+        ports:
+        - containerPort: ${PORT}
+        envFrom:
+        - secretRef:
+            name: mongodb-secret
+        env:
+        - name: MONGO_URI
+          value: "mongodb://mongodb-service:27017/app"
+        - name: BACKEND_URL
+          value: "http://${ENV}-backend-service-app.gitops-project-${ENV}.svc.cluster.local:3000/users"      
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
